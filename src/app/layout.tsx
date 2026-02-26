@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MirzaCapital Investments | Real Estate Investment Tools",
+  title: "MirzaCapital Investments | Multi-Unit Investor Suite",
   description:
-    "Professional real estate investment analysis tools — Deal Analyzer, Mortgage Calculator, MLI Select Scorer, and CMHC Reference Guide.",
+    "Analyze deals, calculate CMHC-insured mortgage costs, model MLI Select points, and determine if the numbers work — before you make an offer.",
 };
 
 export default function RootLayout({
@@ -14,12 +14,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body className="antialiased">{children}</body>
     </html>
   );

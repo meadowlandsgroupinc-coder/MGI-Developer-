@@ -2,334 +2,396 @@
 
 import { useState, useMemo } from "react";
 import ToolPageLayout from "@/components/ToolPageLayout";
+import {
+  AFFORDABILITY_POINTS,
+  ENERGY_POINTS,
+  ACCESSIBILITY_POINTS,
+  MLI_POINTS_TIERS,
+  getMLITier,
+} from "@/lib/cmhc-data";
 
-interface MLICriteria {
-  // Energy Efficiency
-  energyEfficiency: number; // 0-25 points
-  // Accessibility
-  accessibility: number; // 0-25 points
-  // Affordability
-  affordability: number; // 0-50 points
+interface Selections {
+  affordability: number;
+  energy: number;
+  accessibility: number;
 }
 
-const energyOptions = [
-  { label: "No energy efficiency measures", value: 0, desc: "Base level — no additional measures" },
-  { label: "10% below National Energy Code", value: 5, desc: "Modest improvement over code" },
-  { label: "25% below National Energy Code", value: 10, desc: "Meaningful reduction in energy use" },
-  { label: "ENERGY STAR certified", value: 15, desc: "Recognized efficiency standard" },
-  { label: "Net Zero Ready / Passive House", value: 20, desc: "High-performance building envelope" },
-  { label: "Net Zero Energy", value: 25, desc: "Maximum energy efficiency points" },
-];
-
-const accessibilityOptions = [
-  { label: "No accessibility features", value: 0, desc: "Standard construction" },
-  { label: "10% accessible / adaptable units", value: 5, desc: "Basic accessibility provision" },
-  { label: "20% accessible + common areas", value: 10, desc: "Moderate accessibility" },
-  { label: "Universal design principles applied", value: 15, desc: "Broad design accessibility" },
-  { label: "30%+ fully accessible units", value: 20, desc: "Strong accessibility commitment" },
-  { label: "Exceeds all accessibility standards", value: 25, desc: "Maximum accessibility points" },
-];
-
-const affordabilityOptions = [
-  { label: "Market rents — no affordability", value: 0, desc: "No discount from market rents" },
-  { label: "10% below median market rent (min 20% units)", value: 10, desc: "Basic affordability commitment" },
-  { label: "20% below median market rent (min 20% units)", value: 20, desc: "Meaningful rent savings" },
-  { label: "20% below median (min 100% units)", value: 30, desc: "Broad affordability" },
-  { label: "30% below median market rent (min 20% units)", value: 40, desc: "Deep affordability for some units" },
-  { label: "30% below median (min 100% units)", value: 50, desc: "Maximum affordability points" },
-];
-
-function getPremiumDiscount(totalScore: number): {
-  discount: number;
-  tier: string;
-} {
-  if (totalScore >= 70) return { discount: 40, tier: "Platinum" };
-  if (totalScore >= 50) return { discount: 25, tier: "Gold" };
-  if (totalScore >= 25) return { discount: 15, tier: "Silver" };
-  if (totalScore > 0) return { discount: 5, tier: "Bronze" };
-  return { discount: 0, tier: "Not Eligible" };
-}
-
-function ScoreBar({
-  label,
-  score,
-  max,
+function PointCategory({
+  title,
+  items,
+  field,
+  color,
+  selected,
+  onSelect,
 }: {
-  label: string;
-  score: number;
-  max: number;
+  title: string;
+  items: { desc: string; pts: number }[];
+  field: string;
+  color: string;
+  selected: number;
+  onSelect: (i: number) => void;
 }) {
-  const pct = max > 0 ? (score / max) * 100 : 0;
   return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-[var(--color-text-muted)]">{label}</span>
-        <span className="font-semibold text-[var(--color-primary)]">
-          {score} / {max}
-        </span>
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="section-label" style={{ color }}>
+        {title}
       </div>
-      <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-500"
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <button
+          onClick={() => onSelect(-1)}
           style={{
-            width: `${pct}%`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
             background:
-              pct >= 80
-                ? "#16a34a"
-                : pct >= 50
-                  ? "#ca8a04"
-                  : pct > 0
-                    ? "#ea580c"
-                    : "#e5e7eb",
+              selected === -1
+                ? "rgba(255,255,255,0.06)"
+                : "transparent",
+            border: `1px solid ${
+              selected === -1
+                ? "rgba(255,255,255,0.15)"
+                : "rgba(255,255,255,0.04)"
+            }`,
+            borderRadius: 6,
+            padding: "10px 14px",
+            cursor: "pointer",
+            color: "#999",
+            fontFamily: "sans-serif",
+            fontSize: 12,
+            textAlign: "left",
+            width: "100%",
           }}
-        />
+        >
+          <span>None / Not applicable</span>
+          <span style={{ color: "#555" }}>0 pts</span>
+        </button>
+        {items.map((item, i) => (
+          <button
+            key={i}
+            onClick={() => onSelect(i)}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              background:
+                selected === i ? `${color}15` : "transparent",
+              border: `1px solid ${
+                selected === i ? color + "44" : "rgba(255,255,255,0.04)"
+              }`,
+              borderRadius: 6,
+              padding: "10px 14px",
+              cursor: "pointer",
+              color: selected === i ? "#fff" : "#999",
+              fontFamily: "sans-serif",
+              fontSize: 12,
+              textAlign: "left",
+              width: "100%",
+              transition: "all 0.15s",
+            }}
+          >
+            <span style={{ flex: 1, marginRight: 12 }}>{item.desc}</span>
+            <span
+              style={{
+                fontWeight: 600,
+                color: selected === i ? color : "#555",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {item.pts} pts
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
 export default function MLISelectPage() {
-  const [criteria, setCriteria] = useState<MLICriteria>({
-    energyEfficiency: 0,
-    accessibility: 0,
-    affordability: 0,
+  const [selections, setSelections] = useState<Selections>({
+    affordability: -1,
+    energy: -1,
+    accessibility: -1,
   });
 
-  const totalScore = useMemo(
-    () =>
-      criteria.energyEfficiency +
-      criteria.accessibility +
-      criteria.affordability,
-    [criteria]
-  );
-  const { discount, tier } = useMemo(
-    () => getPremiumDiscount(totalScore),
-    [totalScore]
-  );
+  const totalPoints = useMemo(() => {
+    let pts = 0;
+    if (selections.affordability >= 0)
+      pts += AFFORDABILITY_POINTS[selections.affordability].pts;
+    if (selections.energy >= 0) pts += ENERGY_POINTS[selections.energy].pts;
+    if (selections.accessibility >= 0)
+      pts += ACCESSIBILITY_POINTS[selections.accessibility].pts;
+    return pts;
+  }, [selections]);
 
-  const tierColor =
-    tier === "Platinum"
-      ? "text-purple-700 bg-purple-50 border-purple-200"
-      : tier === "Gold"
-        ? "text-yellow-700 bg-yellow-50 border-yellow-200"
-        : tier === "Silver"
-          ? "text-gray-600 bg-gray-50 border-gray-200"
-          : tier === "Bronze"
-            ? "text-orange-700 bg-orange-50 border-orange-200"
-            : "text-red-600 bg-red-50 border-red-200";
+  const tier = getMLITier(totalPoints);
 
   return (
-    <ToolPageLayout
-      title="MLI Select Scorer"
-      description="Score your multi-unit residential project against CMHC MLI Select criteria and determine your premium discount tier."
-    >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Energy Efficiency */}
-          <div className="bg-white rounded-xl border border-[var(--color-border)] p-6">
-            <h2 className="text-lg font-semibold text-[var(--color-primary)] mb-1">
-              Energy Efficiency
-            </h2>
-            <p className="text-sm text-[var(--color-text-muted)] mb-4">
-              Up to 25 points for energy performance above code requirements.
-            </p>
-            <div className="space-y-2">
-              {energyOptions.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                    criteria.energyEfficiency === opt.value
-                      ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
-                      : "border-[var(--color-border)] hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="energy"
-                    checked={criteria.energyEfficiency === opt.value}
-                    onChange={() =>
-                      setCriteria((p) => ({
-                        ...p,
-                        energyEfficiency: opt.value,
-                      }))
-                    }
-                    className="mt-0.5 accent-[var(--color-accent)]"
-                  />
-                  <div>
-                    <div className="text-sm font-medium">
-                      {opt.label}{" "}
-                      <span className="text-[var(--color-accent)] font-semibold">
-                        ({opt.value} pts)
-                      </span>
-                    </div>
-                    <div className="text-xs text-[var(--color-text-muted)]">
-                      {opt.desc}
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
+    <ToolPageLayout>
+      <h2 style={{ fontSize: 26, fontWeight: 300, color: "#fff", margin: "0 0 6px" }}>
+        MLI Select Points Scorer
+      </h2>
+      <p style={{ fontFamily: "sans-serif", fontSize: 13, color: "#666", marginBottom: 24 }}>
+        Select your commitments to see your MLI Select score and the financing
+        incentives you unlock.
+      </p>
 
-          {/* Accessibility */}
-          <div className="bg-white rounded-xl border border-[var(--color-border)] p-6">
-            <h2 className="text-lg font-semibold text-[var(--color-primary)] mb-1">
-              Accessibility
-            </h2>
-            <p className="text-sm text-[var(--color-text-muted)] mb-4">
-              Up to 25 points for accessible and adaptable unit design.
-            </p>
-            <div className="space-y-2">
-              {accessibilityOptions.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                    criteria.accessibility === opt.value
-                      ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
-                      : "border-[var(--color-border)] hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="accessibility"
-                    checked={criteria.accessibility === opt.value}
-                    onChange={() =>
-                      setCriteria((p) => ({
-                        ...p,
-                        accessibility: opt.value,
-                      }))
-                    }
-                    className="mt-0.5 accent-[var(--color-accent)]"
-                  />
-                  <div>
-                    <div className="text-sm font-medium">
-                      {opt.label}{" "}
-                      <span className="text-[var(--color-accent)] font-semibold">
-                        ({opt.value} pts)
-                      </span>
-                    </div>
-                    <div className="text-xs text-[var(--color-text-muted)]">
-                      {opt.desc}
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
+      {/* Score Display */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr 1fr",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            padding: 20,
+            background: tier
+              ? `${totalPoints >= 100 ? "#4ade80" : totalPoints >= 70 ? "#facc15" : "#8ab4f8"}08`
+              : "rgba(255,255,255,0.02)",
+            border: `1px solid ${
+              tier
+                ? totalPoints >= 100
+                  ? "#4ade8033"
+                  : totalPoints >= 70
+                    ? "#facc1533"
+                    : "#8ab4f833"
+                : "rgba(255,255,255,0.06)"
+            }`,
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 36,
+              fontWeight: 300,
+              color: tier ? "#fff" : "#555",
+            }}
+          >
+            {totalPoints}
           </div>
-
-          {/* Affordability */}
-          <div className="bg-white rounded-xl border border-[var(--color-border)] p-6">
-            <h2 className="text-lg font-semibold text-[var(--color-primary)] mb-1">
-              Affordability
-            </h2>
-            <p className="text-sm text-[var(--color-text-muted)] mb-4">
-              Up to 50 points for providing rents below median market levels.
-            </p>
-            <div className="space-y-2">
-              {affordabilityOptions.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                    criteria.affordability === opt.value
-                      ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
-                      : "border-[var(--color-border)] hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="affordability"
-                    checked={criteria.affordability === opt.value}
-                    onChange={() =>
-                      setCriteria((p) => ({
-                        ...p,
-                        affordability: opt.value,
-                      }))
-                    }
-                    className="mt-0.5 accent-[var(--color-accent)]"
-                  />
-                  <div>
-                    <div className="text-sm font-medium">
-                      {opt.label}{" "}
-                      <span className="text-[var(--color-accent)] font-semibold">
-                        ({opt.value} pts)
-                      </span>
-                    </div>
-                    <div className="text-xs text-[var(--color-text-muted)]">
-                      {opt.desc}
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
+          <div
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 9,
+              letterSpacing: 1.5,
+              color: "#888",
+              textTransform: "uppercase",
+              fontWeight: 600,
+              marginTop: 4,
+            }}
+          >
+            Total Points
+          </div>
+          <div
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 11,
+              color: totalPoints >= 50 ? "#4ade80" : "#f87171",
+              marginTop: 6,
+            }}
+          >
+            {totalPoints >= 50
+              ? "\u2713 Qualifies"
+              : `Need ${50 - totalPoints} more pts`}
           </div>
         </div>
 
-        {/* Results Sidebar */}
-        <div className="space-y-4">
-          <div className="bg-[var(--color-primary)] rounded-xl p-6 text-white">
-            <h2 className="text-lg font-semibold mb-1">Total Score</h2>
-            <div className="text-5xl font-extrabold text-[var(--color-accent)]">
-              {totalScore}
-              <span className="text-2xl text-white/50"> / 100</span>
-            </div>
-          </div>
-
+        <div
+          style={{
+            textAlign: "center",
+            padding: 20,
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 10,
+          }}
+        >
           <div
-            className={`rounded-xl border p-4 text-center ${tierColor}`}
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 36,
+              fontWeight: 300,
+              color: tier ? "#8ab4f8" : "#555",
+            }}
           >
-            <div className="text-sm font-medium mb-1">Premium Discount Tier</div>
-            <div className="text-3xl font-extrabold">{tier}</div>
-            {discount > 0 && (
-              <div className="text-sm mt-1 font-semibold">
-                {discount}% premium reduction
-              </div>
-            )}
+            {tier ? `${(tier.discount * 100).toFixed(0)}%` : "\u2014"}
           </div>
+          <div
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 9,
+              letterSpacing: 1.5,
+              color: "#888",
+              textTransform: "uppercase",
+              fontWeight: 600,
+              marginTop: 4,
+            }}
+          >
+            Premium Discount
+          </div>
+        </div>
 
-          <div className="bg-white rounded-xl border border-[var(--color-border)] p-4 space-y-3">
-            <h3 className="font-semibold text-[var(--color-primary)]">
-              Score Breakdown
-            </h3>
-            <ScoreBar
-              label="Energy Efficiency"
-              score={criteria.energyEfficiency}
-              max={25}
-            />
-            <ScoreBar
-              label="Accessibility"
-              score={criteria.accessibility}
-              max={25}
-            />
-            <ScoreBar
-              label="Affordability"
-              score={criteria.affordability}
-              max={50}
-            />
+        <div
+          style={{
+            textAlign: "center",
+            padding: 20,
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 36,
+              fontWeight: 300,
+              color: tier ? "#facc15" : "#555",
+            }}
+          >
+            {tier ? `${tier.maxAmort}yr` : "25yr"}
           </div>
+          <div
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 9,
+              letterSpacing: 1.5,
+              color: "#888",
+              textTransform: "uppercase",
+              fontWeight: 600,
+              marginTop: 4,
+            }}
+          >
+            Max Amortization
+          </div>
+        </div>
 
-          <div className="bg-white rounded-xl border border-[var(--color-border)] p-4 text-sm">
-            <h3 className="font-semibold text-[var(--color-primary)] mb-2">
-              Tier Thresholds
-            </h3>
-            <div className="space-y-1.5 text-[var(--color-text-muted)]">
-              <div className="flex justify-between">
-                <span>Platinum (40% off)</span>
-                <span className="font-medium">70+ pts</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Gold (25% off)</span>
-                <span className="font-medium">50–69 pts</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Silver (15% off)</span>
-                <span className="font-medium">25–49 pts</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Bronze (5% off)</span>
-                <span className="font-medium">1–24 pts</span>
-              </div>
-            </div>
+        <div
+          style={{
+            textAlign: "center",
+            padding: 20,
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 36,
+              fontWeight: 300,
+              color: tier ? "#c4b5fd" : "#555",
+            }}
+          >
+            {tier ? `${tier.maxLTV}%` : "85%"}
           </div>
+          <div
+            style={{
+              fontFamily: "sans-serif",
+              fontSize: 9,
+              letterSpacing: 1.5,
+              color: "#888",
+              textTransform: "uppercase",
+              fontWeight: 600,
+              marginTop: 4,
+            }}
+          >
+            Max LTV
+          </div>
+        </div>
+      </div>
+
+      <PointCategory
+        title="Affordability"
+        items={AFFORDABILITY_POINTS}
+        field="affordability"
+        color="#4ade80"
+        selected={selections.affordability}
+        onSelect={(i) =>
+          setSelections((p) => ({ ...p, affordability: i }))
+        }
+      />
+      <PointCategory
+        title="Energy Efficiency"
+        items={ENERGY_POINTS}
+        field="energy"
+        color="#8ab4f8"
+        selected={selections.energy}
+        onSelect={(i) => setSelections((p) => ({ ...p, energy: i }))}
+      />
+      <PointCategory
+        title="Accessibility"
+        items={ACCESSIBILITY_POINTS}
+        field="accessibility"
+        color="#facc15"
+        selected={selections.accessibility}
+        onSelect={(i) =>
+          setSelections((p) => ({ ...p, accessibility: i }))
+        }
+      />
+
+      {/* Tier Benefits */}
+      <div className="card">
+        <div className="section-label" style={{ color: "#c4b5fd" }}>
+          MLI Select Tier Benefits
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 12,
+          }}
+        >
+          {MLI_POINTS_TIERS.map((t, i) => {
+            const isActive =
+              totalPoints >= t.min &&
+              (i === MLI_POINTS_TIERS.length - 1 ||
+                totalPoints < MLI_POINTS_TIERS[i + 1].min);
+            return (
+              <div
+                key={i}
+                style={{
+                  padding: 16,
+                  borderRadius: 8,
+                  textAlign: "center",
+                  background: isActive
+                    ? "rgba(138,180,248,0.08)"
+                    : "rgba(0,0,0,0.2)",
+                  border: isActive
+                    ? "1px solid rgba(138,180,248,0.3)"
+                    : "1px solid rgba(255,255,255,0.04)",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "sans-serif",
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: "#fff",
+                  }}
+                >
+                  {t.label}
+                </div>
+                <div
+                  style={{
+                    fontFamily: "sans-serif",
+                    fontSize: 11,
+                    color: "#888",
+                    marginTop: 8,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Up to {t.maxLTV}% LTV
+                  <br />
+                  Up to {t.maxAmort}yr amort
+                  <br />
+                  {(t.discount * 100).toFixed(0)}% premium discount
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </ToolPageLayout>
